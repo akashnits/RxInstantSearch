@@ -6,6 +6,7 @@ import android.support.v7.widget.DefaultItemAnimator;
 import android.support.v7.widget.DividerItemDecoration;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.text.TextUtils;
 import android.widget.EditText;
 
 import com.cloudbanter.rxinstantsearch.adapter.ContactsAdapter;
@@ -21,12 +22,14 @@ import java.util.concurrent.TimeUnit;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import io.reactivex.Observable;
 import io.reactivex.ObservableSource;
 import io.reactivex.Single;
 import io.reactivex.SingleSource;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.functions.Function;
+import io.reactivex.functions.Predicate;
 import io.reactivex.observers.DisposableObserver;
 import io.reactivex.observers.DisposableSingleObserver;
 import io.reactivex.schedulers.Schedulers;
@@ -59,11 +62,9 @@ public class RemoteSearchActivity extends AppCompatActivity implements ContactsA
         recyclerView.addItemDecoration(new DividerItemDecoration(this, DividerItemDecoration.VERTICAL));
         recyclerView.setAdapter(mAdapter);
 
-
-
         apiService = ApiClient.getRetrofit().create(ApiService.class);
 
-        disposable.add(publishSubject.debounce(300, TimeUnit.MILLISECONDS)
+        /*disposable.add(publishSubject.debounce(300, TimeUnit.MILLISECONDS)
                 .switchMapSingle(new Function<String, SingleSource<List<Contact>>>() {
                     @Override
                     public SingleSource<List<Contact>> apply(String s) throws Exception {
@@ -79,11 +80,46 @@ public class RemoteSearchActivity extends AppCompatActivity implements ContactsA
                 .debounce(300, TimeUnit.MILLISECONDS)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribeWith(searchContactsTextWatcher()));
+                .subscribeWith(searchContactsTextWatcher()));*/
+
+
+
+        Observable<String> observable= RxSearchObservable.fromView(inputSearch);
+
+        observable
+                .debounce(300, TimeUnit.MILLISECONDS)
+                .distinctUntilChanged()
+                .subscribeOn(Schedulers.io())
+                .switchMapSingle(new Function<String, SingleSource<List<Contact>>>() {
+                    @Override
+                    public SingleSource<List<Contact>> apply(String s) throws Exception {
+                        return apiService.getContacts("", s)
+                                .subscribeOn(Schedulers.io())
+                                .observeOn(AndroidSchedulers.mainThread());
+                    }
+                }).subscribeWith(new DisposableObserver<List<Contact>>() {
+            @Override
+            public void onNext(List<Contact> contacts) {
+                contactsList.clear();
+                contactsList.addAll(contacts);
+                mAdapter.notifyDataSetChanged();
+            }
+
+            @Override
+            public void onError(Throwable e) {
+
+            }
+
+            @Override
+            public void onComplete() {
+
+            }
+        });
     }
 
 
-    private DisposableObserver<List<Contact>> getSearchObserver(){
+
+   /* private DisposableObserver<List<Contact>> getSearchObserver(){
         return new DisposableObserver<List<Contact>>() {
             @Override
             public void onNext(List<Contact> contacts) {
@@ -122,7 +158,7 @@ public class RemoteSearchActivity extends AppCompatActivity implements ContactsA
             }
         };
 
-    }
+    }*/
     @Override
     public void onContactSelected(Contact contact) {
 
